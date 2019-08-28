@@ -3,13 +3,13 @@ extern crate hmc;
 static TRUE: &'static [u8] = &[1];
 static FALSE: &'static [u8] = &[0];
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 pub fn init() -> i32 {
     set_minter(&hmc::get_sender().unwrap());
     0
 }
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 pub fn approve() -> i32 {
     match _approve() {
         Ok(true) => 0,
@@ -21,7 +21,7 @@ pub fn approve() -> i32 {
     }
 }
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 #[allow(non_snake_case)]
 pub fn setApprovalForAll() -> i32 {
     match _setApprovalForAll() {
@@ -49,7 +49,7 @@ fn _setApprovalForAll() -> Result<(), String> {
     Ok(())
 }
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 #[allow(non_snake_case)]
 pub fn isApprovedForAll() -> i32 {
     match _isApprovedForAll() {
@@ -111,7 +111,7 @@ fn get_token_owner(token_id: u64) -> Result<Vec<u8>, String> {
     hmc::read_state(&key)
 }
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 #[allow(non_snake_case)]
 pub fn ownerOf() -> i32 {
     match _owner_of() {
@@ -173,7 +173,7 @@ fn make_key_by_parts(parts: Vec<&[u8]>) -> Vec<u8> {
     parts.join(&('/' as u8))
 }
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 pub fn mint() -> i32 {
     match _mint() {
         Ok(_) => 0,
@@ -220,7 +220,7 @@ fn is_minter(addr: &[u8]) -> bool {
     get_minter() == addr
 }
 
-#[no_mangle]
+#[cfg_attr(not(feature = "emulation"), no_mangle)]
 #[allow(non_snake_case)]
 pub fn transferFrom() -> i32 {
     match _transferFrom() {
