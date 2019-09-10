@@ -73,15 +73,15 @@ fn get_token_owner(token_id: u64) -> Result<Address, Error> {
     api::read_state(&key)
 }
 
-#[cfg_attr(not(feature = "emulation"), no_mangle)]
 #[allow(non_snake_case)]
+#[contract]
 pub fn ownerOf() -> R<Address> {
     let token_id: u64 = api::get_arg(0)?;
     Ok(Some(get_token_owner(token_id)?))
 }
 
 fn make_token_owner_key(token_id: u64) -> Vec<u8> {
-    make_key_by_parts(vec![b"tokenOwner", &token_id.to_be_bytes()])
+    make_key_by_parts(vec![b"tokenOwner", &token_id.to_bytes()])
 }
 
 fn set_token_approvals(token_id: u64, to: &Address) {
