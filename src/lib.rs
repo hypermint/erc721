@@ -20,7 +20,9 @@ pub fn approve() -> R<i32> {
         return Err(error::from_str("ERC721: approval to current owner"));
     }
     if !(owner == sender || is_approved_for_all(&owner, &sender)?) {
-        return Err(error::from_str("ERC721: approve caller is not owner nor approved for all"));
+        return Err(error::from_str(
+            "ERC721: approve caller is not owner nor approved for all",
+        ));
     }
 
     set_token_approvals(token_id, &to);
@@ -59,7 +61,11 @@ fn is_approved_for_all(owner: &Address, operator: &Address) -> Result<bool, Erro
 }
 
 fn make_operator_approvals_key(owner: &Address, operator: &Address) -> Vec<u8> {
-    make_key_by_parts(vec!["operatorApprovals".as_bytes(), &owner.to_bytes(), &operator.to_bytes()])
+    make_key_by_parts(vec![
+        b"operatorApprovals",
+        &owner.to_bytes(),
+        &operator.to_bytes(),
+    ])
 }
 
 fn get_token_owner(token_id: u64) -> Result<Address, Error> {
@@ -75,7 +81,7 @@ pub fn ownerOf() -> R<Address> {
 }
 
 fn make_token_owner_key(token_id: u64) -> Vec<u8> {
-    make_key_by_parts(vec!["tokenOwner".as_bytes(), &token_id.to_be_bytes()])
+    make_key_by_parts(vec![b"tokenOwner", &token_id.to_be_bytes()])
 }
 
 fn set_token_approvals(token_id: u64, to: &Address) {
@@ -84,27 +90,28 @@ fn set_token_approvals(token_id: u64, to: &Address) {
 }
 
 fn make_token_approvals_key(token_id: u64) -> Vec<u8> {
-    make_key_by_parts(vec!["tokenApprovals".as_bytes(), &token_id.to_bytes()])
+    make_key_by_parts(vec![b"tokenApprovals", &token_id.to_bytes()])
 }
 
 fn _get_approved(token_id: u64) -> Result<Vec<u8>, Error> {
     if !_exists(token_id) {
-        return Err(error::from_str("ERC721: approved query for nonexistent token"));
+        return Err(error::from_str(
+            "ERC721: approved query for nonexistent token",
+        ));
     }
     let key = make_token_approvals_key(token_id);
     api::read_state(&key)
 }
 
 fn _exists(token_id: u64) -> bool {
-    match get_token_owner(token_id) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    get_token_owner(token_id).is_ok()
 }
 
 fn is_approved_or_owner(spender: &Address, token_id: u64) -> Result<bool, Error> {
     if !_exists(token_id) {
-        Err(error::from_str("ERC721: operator query for nonexistent token"))
+        Err(error::from_str(
+            "ERC721: operator query for nonexistent token",
+        ))
     } else {
         let owner = get_token_owner(token_id)?;
         Ok(&owner == spender
@@ -114,7 +121,7 @@ fn is_approved_or_owner(spender: &Address, token_id: u64) -> Result<bool, Error>
 }
 
 fn make_key_by_parts(parts: Vec<&[u8]>) -> Vec<u8> {
-    parts.join(&('/' as u8))
+    parts.join(&b'/')
 }
 
 #[contract]
@@ -139,7 +146,7 @@ fn set_token_owner(token_id: u64, to: &Address) {
 }
 
 fn make_minter_key() -> Vec<u8> {
-    make_key_by_parts(vec!["minter".as_bytes()])
+    make_key_by_parts(vec![b"minter"])
 }
 
 fn set_minter(addr: &Address) {
@@ -163,7 +170,9 @@ pub fn transferFrom() -> R<i32> {
     let token_id: u64 = api::get_arg(2)?;
 
     if !is_approved_or_owner(&sender, token_id)? {
-        return Err(error::from_str("ERC721: transfer caller is not owner nor approved"));
+        return Err(error::from_str(
+            "ERC721: transfer caller is not owner nor approved",
+        ));
     }
 
     if get_token_owner(token_id)? != from {
@@ -215,9 +224,7 @@ mod tests {
                     args.push(1u64);
                     args.convert_to_vec()
                 };
-                assert!(
-                    hmemu::call_contract(&SENDER1, args, || { mint() }).is_ok()
-                );
+                assert!(hmemu::call_contract(&SENDER1, args, || { mint() }).is_ok());
             }
 
             {
@@ -227,9 +234,7 @@ mod tests {
                     args.push(2u64);
                     args.convert_to_vec()
                 };
-                assert!(
-                    hmemu::call_contract(&SENDER2, args, || { mint() }).is_err()
-                );
+                assert!(hmemu::call_contract(&SENDER2, args, || { mint() }).is_err());
             }
 
             Ok(0)
@@ -249,9 +254,7 @@ mod tests {
                     args.push(1u64);
                     args.convert_to_vec()
                 };
-                assert!(
-                    hmemu::call_contract(&SENDER1, args, || { mint() }).is_ok()
-                );
+                assert!(hmemu::call_contract(&SENDER1, args, || { mint() }).is_ok());
             }
 
             {
@@ -325,10 +328,7 @@ mod tests {
                     args.push(1u64);
                     args.convert_to_vec()
                 };
-                hmemu::call_contract(&SENDER1, args, || {
-                    transferFrom()
-                })
-                .unwrap();
+                hmemu::call_contract(&SENDER1, args, || transferFrom()).unwrap();
             }
 
             {
@@ -358,7 +358,7 @@ mod tests {
                     args.push(SENDER1);
                     args.push(1u64);
                     args.convert_to_vec()
-                };                
+                };
                 hmemu::call_contract(&SENDER1, args, || mint()).unwrap();
             }
 
@@ -368,7 +368,7 @@ mod tests {
                     args.push(SENDER2);
                     args.push(1u64);
                     args.convert_to_vec()
-                };                
+                };
                 hmemu::call_contract(&SENDER1, args, || {
                     if approve().is_ok() {
                         Ok(())
@@ -386,12 +386,9 @@ mod tests {
                     args.push(SENDER2);
                     args.push(1u64);
                     args.convert_to_vec()
-                };    
+                };
 
-                hmemu::call_contract(&SENDER2, args, || {
-                    transferFrom()
-                })
-                .unwrap();
+                hmemu::call_contract(&SENDER2, args, || transferFrom()).unwrap();
             }
 
             {
@@ -399,7 +396,7 @@ mod tests {
                     let mut args = ArgsBuilder::new();
                     args.push(1u64);
                     args.convert_to_vec()
-                };   
+                };
                 hmemu::call_contract(&SENDER1, args, || {
                     let owner = ownerOf()?;
                     assert_eq!(Some(SENDER2), owner);
@@ -411,6 +408,5 @@ mod tests {
             Ok(0)
         })
         .unwrap();
-
     }
 }
