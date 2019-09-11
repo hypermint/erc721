@@ -66,19 +66,17 @@ pub fn ownerOf() -> R<Address> {
 }
 
 #[contract]
-pub fn mint() -> R<i32> {
+pub fn mint() -> R<u64> {
     let to: Address = api::get_arg(0)?;
-    let token_id: u64 = api::get_arg(1)?;
 
     if !mint::is_minter(&api::get_sender()?)? {
         Err(error::from_str("you are not minter"))
-    } else if token::check_exists(token_id) {
-        Err(error::from_str("token_id already minted"))
     } else {
+        let token_id = mint::get_and_incr_next_token_id();
         token::set_token_owner(token_id, &to);
         // FIXME
         // _ownedTokensCount[to].increment();
-        Ok(None)
+        Ok(Some(token_id))
     }
 }
 
@@ -131,17 +129,19 @@ mod tests {
                 let args = {
                     let mut args = ArgsBuilder::new();
                     args.push(SENDER1);
-                    args.push(1u64);
                     args.convert_to_vec()
                 };
-                assert!(hmemu::call_contract(&SENDER1, args, || { mint() }).is_ok());
+                assert!(hmemu::call_contract(&SENDER1, args, || {
+                    assert_eq!(Some(1u64), mint()?);
+                    Ok(())
+                })
+                .is_ok());
             }
 
             {
                 let args = {
                     let mut args = ArgsBuilder::new();
                     args.push(SENDER2);
-                    args.push(2u64);
                     args.convert_to_vec()
                 };
                 assert!(hmemu::call_contract(&SENDER2, args, || { mint() }).is_err());
@@ -161,7 +161,6 @@ mod tests {
                 let args = {
                     let mut args = ArgsBuilder::new();
                     args.push(SENDER1);
-                    args.push(1u64);
                     args.convert_to_vec()
                 };
                 assert!(hmemu::call_contract(&SENDER1, args, || { mint() }).is_ok());
@@ -195,10 +194,13 @@ mod tests {
                 let args = {
                     let mut args = ArgsBuilder::new();
                     args.push(SENDER1);
-                    args.push(1u64);
                     args.convert_to_vec()
                 };
-                hmemu::call_contract(&SENDER1, args, || mint()).unwrap();
+                assert!(hmemu::call_contract(&SENDER1, args, || {
+                    assert_eq!(Some(1u64), mint()?);
+                    Ok(())
+                })
+                .is_ok());
             }
 
             {
@@ -266,10 +268,13 @@ mod tests {
                 let args = {
                     let mut args = ArgsBuilder::new();
                     args.push(SENDER1);
-                    args.push(1u64);
                     args.convert_to_vec()
                 };
-                hmemu::call_contract(&SENDER1, args, || mint()).unwrap();
+                assert!(hmemu::call_contract(&SENDER1, args, || {
+                    assert_eq!(Some(1u64), mint()?);
+                    Ok(())
+                })
+                .is_ok());
             }
 
             {
