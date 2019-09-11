@@ -2,10 +2,13 @@ extern crate hmcdk;
 use hmcdk::api;
 use hmcdk::error;
 use hmcdk::prelude::*;
+mod mint;
+mod token;
+mod util;
 
 #[contract]
 pub fn init() -> R<bool> {
-    set_minter(&api::get_sender()?);
+    mint::set_minter(&api::get_sender()?);
     Ok(Some(true))
 }
 
@@ -15,17 +18,17 @@ pub fn approve() -> R<i32> {
     let to: Address = api::get_arg(0)?;
     let token_id: u64 = api::get_arg(1)?;
 
-    let owner = get_token_owner(token_id)?;
+    let owner = token::get_token_owner(token_id)?;
     if owner == to {
         return Err(error::from_str("ERC721: approval to current owner"));
     }
-    if !(owner == sender || is_approved_for_all(&owner, &sender)?) {
+    if !(owner == sender || token::is_approved_for_all(&owner, &sender)?) {
         return Err(error::from_str(
             "ERC721: approve caller is not owner nor approved for all",
         ));
     }
 
-    set_token_approvals(token_id, &to);
+    token::set_token_approvals(token_id, &to);
 
     Ok(None)
 }
@@ -36,8 +39,8 @@ pub fn setApprovalForAll() -> R<bool> {
     let sender = api::get_sender()?;
     let to: Address = api::get_arg(0)?;
     let approved: bool = api::get_arg(1)?;
-    let key = make_operator_approvals_key(&sender, &to);
-    api::write_state(&key, &approved.to_bytes());
+
+    token::set_approved(&sender, &to, approved);
     // emit ApprovalForAll(msg.sender, to, approved);
     Ok(Some(true))
 }
@@ -48,80 +51,18 @@ pub fn isApprovedForAll() -> R<bool> {
     let owner: Address = api::get_arg(0)?;
     let operator = api::get_arg(1)?;
 
-    if is_approved_for_all(&owner, &operator)? {
+    if token::is_approved_for_all(&owner, &operator)? {
         Ok(Some(true))
     } else {
         Ok(Some(false))
     }
 }
 
-fn is_approved_for_all(owner: &Address, operator: &Address) -> Result<bool, Error> {
-    let key = make_operator_approvals_key(owner, operator);
-    api::read_state(&key)
-}
-
-fn make_operator_approvals_key(owner: &Address, operator: &Address) -> Vec<u8> {
-    make_key_by_parts(vec![
-        b"operatorApprovals",
-        &owner.to_bytes(),
-        &operator.to_bytes(),
-    ])
-}
-
-fn get_token_owner(token_id: u64) -> Result<Address, Error> {
-    let key = make_token_owner_key(token_id);
-    api::read_state(&key)
-}
-
 #[allow(non_snake_case)]
 #[contract]
 pub fn ownerOf() -> R<Address> {
     let token_id: u64 = api::get_arg(0)?;
-    Ok(Some(get_token_owner(token_id)?))
-}
-
-fn make_token_owner_key(token_id: u64) -> Vec<u8> {
-    make_key_by_parts(vec![b"tokenOwner", &token_id.to_bytes()])
-}
-
-fn set_token_approvals(token_id: u64, to: &Address) {
-    let key = make_token_approvals_key(token_id);
-    api::write_state(&key, &to.to_bytes());
-}
-
-fn make_token_approvals_key(token_id: u64) -> Vec<u8> {
-    make_key_by_parts(vec![b"tokenApprovals", &token_id.to_bytes()])
-}
-
-fn _get_approved(token_id: u64) -> Result<Vec<u8>, Error> {
-    if !_exists(token_id) {
-        return Err(error::from_str(
-            "ERC721: approved query for nonexistent token",
-        ));
-    }
-    let key = make_token_approvals_key(token_id);
-    api::read_state(&key)
-}
-
-fn _exists(token_id: u64) -> bool {
-    get_token_owner(token_id).is_ok()
-}
-
-fn is_approved_or_owner(spender: &Address, token_id: u64) -> Result<bool, Error> {
-    if !_exists(token_id) {
-        Err(error::from_str(
-            "ERC721: operator query for nonexistent token",
-        ))
-    } else {
-        let owner = get_token_owner(token_id)?;
-        Ok(&owner == spender
-            || _get_approved(token_id)? == spender
-            || is_approved_for_all(&owner, spender)?)
-    }
-}
-
-fn make_key_by_parts(parts: Vec<&[u8]>) -> Vec<u8> {
-    parts.join(&b'/')
+    Ok(Some(token::get_token_owner(token_id)?))
 }
 
 #[contract]
@@ -129,36 +70,16 @@ pub fn mint() -> R<i32> {
     let to: Address = api::get_arg(0)?;
     let token_id: u64 = api::get_arg(1)?;
 
-    if !is_minter(&api::get_sender()?)? {
+    if !mint::is_minter(&api::get_sender()?)? {
         Err(error::from_str("you are not minter"))
-    } else if _exists(token_id) {
+    } else if token::check_exists(token_id) {
         Err(error::from_str("token_id already minted"))
     } else {
-        set_token_owner(token_id, &to);
+        token::set_token_owner(token_id, &to);
         // FIXME
         // _ownedTokensCount[to].increment();
         Ok(None)
     }
-}
-
-fn set_token_owner(token_id: u64, to: &Address) {
-    api::write_state(&make_token_owner_key(token_id), to);
-}
-
-fn make_minter_key() -> Vec<u8> {
-    make_key_by_parts(vec![b"minter"])
-}
-
-fn set_minter(addr: &Address) {
-    api::write_state(&make_minter_key(), &addr.to_bytes());
-}
-
-fn get_minter() -> Result<Address, Error> {
-    api::read_state(&make_minter_key())
-}
-
-fn is_minter(addr: &Address) -> Result<bool, Error> {
-    Ok(&get_minter()? == addr)
 }
 
 #[allow(non_snake_case)]
@@ -169,38 +90,27 @@ pub fn transferFrom() -> R<i32> {
     let to = api::get_arg(1)?;
     let token_id: u64 = api::get_arg(2)?;
 
-    if !is_approved_or_owner(&sender, token_id)? {
+    if !token::is_approved_or_owner(&sender, token_id)? {
         return Err(error::from_str(
             "ERC721: transfer caller is not owner nor approved",
         ));
     }
 
-    if get_token_owner(token_id)? != from {
+    if token::get_token_owner(token_id)? != from {
         return Err(error::from_str("ERC721: transfer of token that is not own"));
     }
 
-    clear_approval(token_id);
+    token::clear_approval(token_id);
 
     // FIXME
     // _ownedTokensCount[from].decrement();
     // _ownedTokensCount[to].increment();
 
-    set_token_owner(token_id, &to);
+    token::set_token_owner(token_id, &to);
 
     // FIXME
     // emit Transfer(from, to, tokenId)
     Ok(None)
-}
-
-fn clear_approval(token_id: u64) -> bool {
-    match _get_approved(token_id) {
-        Ok(_) => {
-            let zero_address: [u8; 20] = Default::default();
-            set_token_approvals(token_id, &zero_address);
-            true
-        }
-        Err(_) => false,
-    }
 }
 
 #[cfg(test)]
