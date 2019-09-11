@@ -111,6 +111,28 @@ pub fn transferFrom() -> R<i32> {
     Ok(None)
 }
 
+// This API design is a copy from token implementation of crypto kitties: https://etherscan.io/address/0x06012c8cf97bead5deae237070f9587f8e7a266d#code
+// WARNING: This method MUST NEVER be called by smart contract code.
+#[allow(non_snake_case)]
+#[contract]
+pub fn tokensOfOwner() -> R<Vec<u8>> {
+    let owner: Address = api::get_arg(0)?;
+
+    let current = mint::get_current_token_id();
+    if current == 0 {
+        return Err(error::from_str("this contract has no tokens"));
+    }
+
+    let mut addrs_bytes = Vec::<u8>::new();
+    for id in 1..=current {
+        if owner == token::get_token_owner(id)? {
+            addrs_bytes.extend_from_slice(&id.to_bytes());
+        }
+    }
+
+    Ok(Some(addrs_bytes))
+}
+
 #[cfg(test)]
 mod tests {
     extern crate hmemu;
@@ -145,6 +167,63 @@ mod tests {
                     args.convert_to_vec()
                 };
                 assert!(hmemu::call_contract(&SENDER2, args, || { mint() }).is_err());
+            }
+
+            {
+                let args = {
+                    let mut args = ArgsBuilder::new();
+                    args.push(SENDER1);
+                    args.convert_to_vec()
+                };
+                hmemu::call_contract(&SENDER1, args, || {
+                    let tks = tokensOfOwner()?.unwrap();
+                    assert_eq!(1 * 8, tks.len());
+                    assert_eq!(1, u64::from_bytes(tks)?);
+                    Ok(())
+                })
+                .unwrap();
+            }
+
+            {
+                let args = {
+                    let mut args = ArgsBuilder::new();
+                    args.push(SENDER1);
+                    args.convert_to_vec()
+                };
+                assert!(hmemu::call_contract(&SENDER1, args, || {
+                    assert_eq!(Some(2u64), mint()?);
+                    Ok(())
+                })
+                .is_ok());
+            }
+
+            {
+                let args = {
+                    let mut args = ArgsBuilder::new();
+                    args.push(SENDER2);
+                    args.convert_to_vec()
+                };
+                assert!(hmemu::call_contract(&SENDER1, args, || {
+                    assert_eq!(Some(3u64), mint()?);
+                    Ok(())
+                })
+                .is_ok());
+            }
+
+            {
+                let args = {
+                    let mut args = ArgsBuilder::new();
+                    args.push(SENDER1);
+                    args.convert_to_vec()
+                };
+                hmemu::call_contract(&SENDER1, args, || {
+                    let tks = tokensOfOwner()?.unwrap();
+                    assert_eq!(2 * 8, tks.len());
+                    assert_eq!(1, u64::from_bytes(tks[0..8].to_vec())?);
+                    assert_eq!(2, u64::from_bytes(tks[8..16].to_vec())?);
+                    Ok(())
+                })
+                .unwrap();
             }
 
             Ok(0)
